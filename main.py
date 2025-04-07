@@ -12,15 +12,31 @@ class Predator(Agent):
         self.unique_id = unique_id
         self.model = model
         self.pos = None
+        self.energy = 10
 
     def step(self):
-        print("Hello I am a scary PREDATOR " + str(self.unique_id) + "At position" + str(self.pos))
+        if self.pos is None:
+            return
+        print ("Predator with id: " + str(self.unique_id) + ", energy: " + str(self.energy))
         possible_steps = self.model.grid.get_neighborhood(
             self.pos, moore=True, include_center=False
         )
         new_position = self.model.rng.choice(possible_steps)
         self.model.grid.move_agent(self, new_position)
+        self.energy -= 1
+        if self.model.grid[new_position][0] is not None:
+            prey = self.model.grid[new_position][0]
+            if isinstance(prey, Prey):
+                self.energy += 10
+                self.model.grid.remove_agent(prey)
+                self.model.agent_storage.remove(prey)
 
+            else:
+                pass
+        if self.energy <= 0:
+            self.model.grid.move_agent(self, (-1,-1))
+            self.model.grid.remove_agent(self)
+            self.model.agent_storage.remove(self)
 
 class Prey(Agent):
     def __init__(self, unique_id, model, *args, **kwargs):
@@ -30,6 +46,8 @@ class Prey(Agent):
         self.pos = None
 
     def step(self):
+        if self.pos is None:
+            return
         print("Hello I am a scary PREY " + str(self.unique_id) + "At position" + str(self.pos))
         possible_steps = self.model.grid.get_neighborhood(
             self.pos, moore=True, include_center=False
@@ -48,28 +66,28 @@ class PredatorPreyModel(Model):
     def __init__(self, n, width, height, seed=None):
         super().__init__(seed=seed)
         self.num_agents = n  # Liczba agentów
-        self.grid = MultiGrid(width, height, True)  # Siatka toroidalna
-        self.rng = random.Random(seed)  # Generator losowy z opcjonalnym seedem
-        self.agent_storage = AgentSet(agents=[])  # Zmieniam nazwę na self.agent_storage
-        self.agent_storage.rng = self.rng  # Ustawienie generatora liczb losowych
+        self.grid = MultiGrid(width, height, True)
+        self.rng = random.Random(seed)
+        self.agent_storage = AgentSet(agents=[])
+        self.agent_storage.rng = self.rng
 
         # Tworzenie agentów Prey
         for i in range(self.num_agents):
-            a = Prey(i, self)  # Tworzenie agenta-ofiary
-            self.agent_storage.add(a)  # Dodanie agenta do agent_storage
+            a = Prey(i, self)
+            self.agent_storage.add(a)
             x = self.rng.randrange(self.grid.width)
             y = self.rng.randrange(self.grid.height)
-            self.grid.place_agent(a, (x, y))  # Umieszczenie agenta w siatce
+            self.grid.place_agent(a, (x, y))
             b = Predator(i, self)
-            self.agent_storage.add(b)  # Dodanie agenta do agent_storage
+            self.agent_storage.add(b)
             xPredator = self.rng.randrange(self.grid.width)
             yPredator = self.rng.randrange(self.grid.height)
-            self.grid.place_agent(b, (xPredator, yPredator))  # Umieszczenie agenta w siatce
+            self.grid.place_agent(b, (xPredator, yPredator))
 
     def step(self):
-        # self.agent_storage.step()  # Przeprowadzenie kroku dla wszystkich agentów
-        for agent in self.agent_storage:  # Iteracja przez agentów
-            agent.step()  # Wywołanie metody step każdego agenta
+        for agent in list(self.agent_storage):
+            agent.step()
+
 def plot_agents(model, width = 10, height = 10):
     grid = model.grid
     fig, ax = plt.subplots(figsize=(6, 6))
@@ -86,12 +104,11 @@ def plot_agents(model, width = 10, height = 10):
             ax.plot(x, y, "o", color="blue")
         if isinstance(agent,Predator):
             ax.plot(x, y, "o", color="red")
-        # ax.scatter(x, y, color="red")
     plt.gca().invert_yaxis()
     plt.show()
 # Inicjalizacja modelu
 model = PredatorPreyModel(10, 10, 10)
-for i in range(10):
+for i in range(100):
     model.step()
     plot_agents(model)
-    time.sleep(2)
+    time.sleep(0.5)
