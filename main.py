@@ -30,6 +30,7 @@ class Predator(Agent):
                 self.energy += 10
                 self.model.grid.remove_agent(prey)
                 self.model.agent_storage.remove(prey)
+                self.model.preyCount -= 1
 
             else:
                 pass
@@ -37,6 +38,7 @@ class Predator(Agent):
             self.model.grid.move_agent(self, (-1,-1))
             self.model.grid.remove_agent(self)
             self.model.agent_storage.remove(self)
+            self.model.predatorCount -= 1
 
 class Prey(Agent):
     def __init__(self, unique_id, model, *args, **kwargs):
@@ -63,26 +65,28 @@ class Grass(Agent):
         self.pos = None
 
 class PredatorPreyModel(Model):
-    def __init__(self, n, width, height, seed=None):
+    def __init__(self, predatorNum, preyNum, width, height, seed=None):
         super().__init__(seed=seed)
-        self.num_agents = n  # Liczba agentów
+        self.preyCount = preyNum
+        self.predatorCount = predatorNum
         self.grid = MultiGrid(width, height, True)
         self.rng = random.Random(seed)
-        self.agent_storage = AgentSet(agents=[])
+        self.agent_storage = AgentSet(agents=[], random = self.rng)
         self.agent_storage.rng = self.rng
-
-        # Tworzenie agentów Prey
-        for i in range(self.num_agents):
-            a = Prey(i, self)
-            self.agent_storage.add(a)
+        # Tworzenie agentów Predator
+        for i in range(self.predatorCount):
+            predator = Predator(i, self)
+            self.agent_storage.add(predator)
             x = self.rng.randrange(self.grid.width)
             y = self.rng.randrange(self.grid.height)
-            self.grid.place_agent(a, (x, y))
-            b = Predator(i, self)
-            self.agent_storage.add(b)
-            xPredator = self.rng.randrange(self.grid.width)
-            yPredator = self.rng.randrange(self.grid.height)
-            self.grid.place_agent(b, (xPredator, yPredator))
+            self.grid.place_agent(predator, (x,y))
+        #Tworzenie agentów Prey
+        for i in range(self.preyCount):
+            prey = Prey(i, self)
+            self.agent_storage.add(prey)
+            x = self.rng.randrange(self.grid.width)
+            y = self.rng.randrange(self.grid.height)
+            self.grid.place_agent(prey, (x,y))
 
     def step(self):
         for agent in list(self.agent_storage):
@@ -98,7 +102,7 @@ def plot_agents(model, width = 10, height = 10):
     ax.grid(True)
 
     # model.grid.plot(ax)
-    for agent in model.agent_storage:
+    for agent in list(model.agent_storage):
         x, y = agent.pos
         if isinstance(agent,Prey):
             ax.plot(x, y, "o", color="blue")
@@ -107,8 +111,14 @@ def plot_agents(model, width = 10, height = 10):
     plt.gca().invert_yaxis()
     plt.show()
 # Inicjalizacja modelu
-model = PredatorPreyModel(10, 10, 10)
+model = PredatorPreyModel(10, 10, 10, 10)
 for i in range(100):
     model.step()
     plot_agents(model)
+    if model.predatorCount <= 0:
+        print("No predators, Preys won")
+        break
+    if model.preyCount <= 0:
+        print("No Preys, predators won")
+        break
     time.sleep(0.5)
