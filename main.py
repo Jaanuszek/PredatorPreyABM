@@ -1,23 +1,38 @@
 from mesa import Agent, Model
 from mesa.agent import AgentSet
 from mesa.space import MultiGrid
+from mesa.visualization import SolaraViz, make_plot_component, make_space_component
 import random
-import matplotlib.pyplot as plt
-import time
+
 
 
 class Predator(Agent):
-    def __init__(self, unique_id, model, *args, **kwargs):
+    def __init__(self, unique_id, model, reproduction_chance=0.5, *args, **kwargs):
         super().__init__(model, *args, **kwargs)
         self.unique_id = unique_id
         self.model = model
         self.pos = None
         self.energy = 10
+        self.alive = True
+        self.reproductionRatio = reproduction_chance
+
+    @classmethod
+    def create_agents(cls, model, n, reproduction_chance, **kwargs):
+        agents = []
+        for i in range(n):
+            agent = cls(i, model, reproduction_chance)
+            agents.append(agent)
+            x = model.rng.randrange(model.grid.width)
+            y = model.rng.randrange(model.grid.height)
+            model.grid.place_agent(agent, (x,y))
+        return agents
 
     def step(self):
+        print("siema Predatorze" + str(self.unique_id) + " Zyje? " + str(self.alive))
         if self.pos is None:
             return
-        print ("Predator with id: " + str(self.unique_id) + ", energy: " + str(self.energy))
+        if self.alive == False or self.energy <= 0:
+            return
         possible_steps = self.model.grid.get_neighborhood(
             self.pos, moore=True, include_center=False
         )
@@ -29,16 +44,26 @@ class Predator(Agent):
             if isinstance(prey, Prey):
                 self.energy += 10
                 self.model.grid.remove_agent(prey)
-                self.model.agent_storage.remove(prey)
+                prey.alive = False
                 self.model.preyCount -= 1
-
+                if self.try_reproduction():
+                    self.model.predatorCount += 1
             else:
                 pass
         if self.energy <= 0:
             self.model.grid.move_agent(self, (-1,-1))
             self.model.grid.remove_agent(self)
-            self.model.agent_storage.remove(self)
+            self.alive = False
             self.model.predatorCount -= 1
+
+    def try_reproduction(self):
+        if random.random() < self.reproductionRatio:
+            new_predator = Predator(self.model.rng.randint(0,100000), self.model)
+            self.model.agent_storage.add(new_predator)
+            # self.model.predatorCount+=1
+            self.model.grid.place_agent(new_predator, self.pos)
+            return True
+        return False
 
 class Prey(Agent):
     def __init__(self, unique_id, model, *args, **kwargs):
@@ -46,11 +71,23 @@ class Prey(Agent):
         self.unique_id = unique_id
         self.model = model
         self.pos = None
+        self.alive = True
+
+    @classmethod
+    def create_agents(cls, model, n, **kwargs):
+        agents = []
+        for i in range(n):
+            agent = cls(i, model)
+            agents.append(agent)
+            x = model.rng.randrange(model.grid.width)
+            y = model.rng.randrange(model.grid.height)
+            model.grid.place_agent(agent, (x,y))
+        return agents
 
     def step(self):
+        print("siema Preyu" + str(self.unique_id) + " Zyje? " + str(self.alive))
         if self.pos is None:
             return
-        print("Hello I am a scary PREY " + str(self.unique_id) + "At position" + str(self.pos))
         possible_steps = self.model.grid.get_neighborhood(
             self.pos, moore=True, include_center=False
         )
@@ -65,7 +102,7 @@ class Grass(Agent):
         self.pos = None
 
 class PredatorPreyModel(Model):
-    def __init__(self, predatorNum, preyNum, width, height, seed=None):
+    def __init__(self, predatorNum=5, preyNum=5, width=5, height=5, seed=None, **kwargs):
         super().__init__(seed=seed)
         self.preyCount = preyNum
         self.predatorCount = predatorNum
@@ -74,51 +111,92 @@ class PredatorPreyModel(Model):
         self.agent_storage = AgentSet(agents=[], random = self.rng)
         self.agent_storage.rng = self.rng
         # Tworzenie agentów Predator
-        for i in range(self.predatorCount):
-            predator = Predator(i, self)
+        predators = Predator.create_agents(model=self, n=predatorNum, reproduction_chance=1)
+        for predator in predators:
             self.agent_storage.add(predator)
-            x = self.rng.randrange(self.grid.width)
-            y = self.rng.randrange(self.grid.height)
-            self.grid.place_agent(predator, (x,y))
-        #Tworzenie agentów Prey
-        for i in range(self.preyCount):
-            prey = Prey(i, self)
+
+        preys = Prey.create_agents(model=self,n=preyNum)
+        for prey in preys:
             self.agent_storage.add(prey)
-            x = self.rng.randrange(self.grid.width)
-            y = self.rng.randrange(self.grid.height)
-            self.grid.place_agent(prey, (x,y))
 
     def step(self):
-        for agent in list(self.agent_storage):
+        agents_copy = self.agent_storage.shuffle(inplace=False)
+
+        if self.predatorCount <= 0 or self.preyCount <= 0:
+            model.running=False
+            return
+
+        for agent in agents_copy:
             agent.step()
 
-def plot_agents(model, width = 10, height = 10):
-    grid = model.grid
-    fig, ax = plt.subplots(figsize=(6, 6))
-    ax.set_xlim(-0.5, grid.width - 0.5)
-    ax.set_ylim(-0.5, grid.height - 0.5)
-    ax.set_xticks(range(width))
-    ax.set_yticks(range(height))
-    ax.grid(True)
+def agent_portrayal(agent):
+    if agent is None:
+        return
 
-    # model.grid.plot(ax)
-    for agent in list(model.agent_storage):
-        x, y = agent.pos
-        if isinstance(agent,Prey):
-            ax.plot(x, y, "o", color="blue")
-        if isinstance(agent,Predator):
-            ax.plot(x, y, "o", color="red")
-    plt.gca().invert_yaxis()
-    plt.show()
-# Inicjalizacja modelu
-model = PredatorPreyModel(10, 10, 10, 10)
-for i in range(100):
-    model.step()
-    plot_agents(model)
-    if model.predatorCount <= 0:
-        print("No predators, Preys won")
-        break
-    if model.preyCount <= 0:
-        print("No Preys, predators won")
-        break
-    time.sleep(0.5)
+    portrayal = {
+        "size": 25,
+    }
+
+    if isinstance(agent, Predator):
+        portrayal["color"] = "tab:red"
+        portrayal["marker"] = "o"
+        portrayal["zorder"] = 2
+    elif isinstance(agent, Prey):
+        portrayal["color"] = "tab:cyan"
+        portrayal["marker"] = "o"
+        portrayal["zorder"] = 2
+    elif isinstance(agent, Grass):
+        if agent.is_grown:
+            portrayal["color"] = "tab:green"
+        else:
+            portrayal["color"] = "tab:brown"
+            portrayal["marker"] = "s"
+            portrayal["size"] = 75
+
+    return portrayal
+
+model_params = {
+    "preyNum": {
+        "type": "SliderInt",
+        "value": 10,
+        "label": "Number of Sheeps:",
+        "min": 10,
+        "max": 100,
+        "step": 1,
+    },
+    "predatorNum": {
+        "type": "SliderInt",
+        "value": 5,
+        "label": "Number of Foxes:",
+        "min": 10,
+        "max": 100,
+        "step": 1,
+    },
+    "width": {
+        "type": "SliderInt",
+        "value": 5,
+        "label": "Width:",
+        "min": 10,
+        "max": 100,
+        "step": 1,
+    },
+    "height": {
+        "type": "SliderInt",
+        "value": 5,
+        "label": "Height:",
+        "min": 10,
+        "max": 100,
+        "step": 1,
+    }
+}
+model = PredatorPreyModel(predatorNum=5, preyNum=5, width=5, height=5)
+model.step()
+SpaceGraph = make_space_component(agent_portrayal)
+GiniPlot = make_plot_component("Gini")
+page = SolaraViz(
+    model,
+    components=[SpaceGraph],
+    model_params=model_params,
+    name="PredatorPreyModel"
+)
+page
