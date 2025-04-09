@@ -1,133 +1,12 @@
-from mesa import Agent, Model
-from mesa.agent import AgentSet
-from mesa.space import MultiGrid
+import solara
+from matplotlib import pyplot as plt
 from mesa.visualization import SolaraViz, make_plot_component, make_space_component
-import random
+from mesa.visualization.utils import update_counter
 
-
-
-class Predator(Agent):
-    def __init__(self, unique_id, model, reproduction_chance=0.5, *args, **kwargs):
-        super().__init__(model, *args, **kwargs)
-        self.unique_id = unique_id
-        self.model = model
-        self.pos = None
-        self.energy = 10
-        self.alive = True
-        self.reproductionRatio = reproduction_chance
-
-    @classmethod
-    def create_agents(cls, model, n, reproduction_chance, **kwargs):
-        agents = []
-        for i in range(n):
-            agent = cls(i, model, reproduction_chance)
-            agents.append(agent)
-            x = model.rng.randrange(model.grid.width)
-            y = model.rng.randrange(model.grid.height)
-            model.grid.place_agent(agent, (x,y))
-        return agents
-
-    def step(self):
-        print("siema Predatorze" + str(self.unique_id) + " Zyje? " + str(self.alive))
-        if self.pos is None:
-            return
-        if self.alive == False or self.energy <= 0:
-            return
-        possible_steps = self.model.grid.get_neighborhood(
-            self.pos, moore=True, include_center=False
-        )
-        new_position = self.model.rng.choice(possible_steps)
-        self.model.grid.move_agent(self, new_position)
-        self.energy -= 1
-        if self.model.grid[new_position][0] is not None:
-            prey = self.model.grid[new_position][0]
-            if isinstance(prey, Prey):
-                self.energy += 10
-                self.model.grid.remove_agent(prey)
-                prey.alive = False
-                self.model.preyCount -= 1
-                if self.try_reproduction():
-                    self.model.predatorCount += 1
-            else:
-                pass
-        if self.energy <= 0:
-            self.model.grid.move_agent(self, (-1,-1))
-            self.model.grid.remove_agent(self)
-            self.alive = False
-            self.model.predatorCount -= 1
-
-    def try_reproduction(self):
-        if random.random() < self.reproductionRatio:
-            new_predator = Predator(self.model.rng.randint(0,100000), self.model)
-            self.model.agent_storage.add(new_predator)
-            # self.model.predatorCount+=1
-            self.model.grid.place_agent(new_predator, self.pos)
-            return True
-        return False
-
-class Prey(Agent):
-    def __init__(self, unique_id, model, *args, **kwargs):
-        super().__init__(model, *args, **kwargs)
-        self.unique_id = unique_id
-        self.model = model
-        self.pos = None
-        self.alive = True
-
-    @classmethod
-    def create_agents(cls, model, n, **kwargs):
-        agents = []
-        for i in range(n):
-            agent = cls(i, model)
-            agents.append(agent)
-            x = model.rng.randrange(model.grid.width)
-            y = model.rng.randrange(model.grid.height)
-            model.grid.place_agent(agent, (x,y))
-        return agents
-
-    def step(self):
-        print("siema Preyu" + str(self.unique_id) + " Zyje? " + str(self.alive))
-        if self.pos is None:
-            return
-        possible_steps = self.model.grid.get_neighborhood(
-            self.pos, moore=True, include_center=False
-        )
-        new_position = self.model.rng.choice(possible_steps)
-        self.model.grid.move_agent(self, new_position)
-
-class Grass(Agent):
-    def __init__(self, unique_id, model, *args, **kwargs):
-        super().__init__(model, *args, **kwargs)
-        self.unique_id = unique_id
-        self.model = model
-        self.pos = None
-
-class PredatorPreyModel(Model):
-    def __init__(self, predatorNum=5, preyNum=5, width=5, height=5, seed=None, **kwargs):
-        super().__init__(seed=seed)
-        self.preyCount = preyNum
-        self.predatorCount = predatorNum
-        self.grid = MultiGrid(width, height, True)
-        self.rng = random.Random(seed)
-        self.agent_storage = AgentSet(agents=[], random = self.rng)
-        self.agent_storage.rng = self.rng
-        # Tworzenie agentów Predator
-        predators = Predator.create_agents(model=self, n=predatorNum, reproduction_chance=1)
-        for predator in predators:
-            self.agent_storage.add(predator)
-
-        preys = Prey.create_agents(model=self,n=preyNum)
-        for prey in preys:
-            self.agent_storage.add(prey)
-
-    def step(self):
-        agents_copy = self.agent_storage.shuffle(inplace=False)
-
-        if self.predatorCount <= 0 or self.preyCount <= 0:
-            model.running=False
-            return
-
-        for agent in agents_copy:
-            agent.step()
+from PreyClass import Prey
+from PredatorClass import Predator
+from ModelClass import PredatorPreyModel
+from GrassClass import Grass
 
 def agent_portrayal(agent):
     if agent is None:
@@ -161,7 +40,7 @@ model_params = {
         "value": 10,
         "label": "Number of Sheeps:",
         "min": 10,
-        "max": 100,
+        "max": 30,
         "step": 1,
     },
     "predatorNum": {
@@ -169,7 +48,7 @@ model_params = {
         "value": 5,
         "label": "Number of Foxes:",
         "min": 10,
-        "max": 100,
+        "max": 30,
         "step": 1,
     },
     "width": {
@@ -177,7 +56,7 @@ model_params = {
         "value": 5,
         "label": "Width:",
         "min": 10,
-        "max": 100,
+        "max": 20,
         "step": 1,
     },
     "height": {
@@ -185,17 +64,69 @@ model_params = {
         "value": 5,
         "label": "Height:",
         "min": 10,
-        "max": 100,
+        "max": 20,
         "step": 1,
+    },
+    "reprodPredator": {
+        "type": "SliderFloat",
+        "value": 0.001,
+        "label": "Predator reproduction Chance:",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+    },
+    "reprodPrey": {
+        "type": "SliderFloat",
+        "value": 0.001,
+        "label": "Prey reproduction Chance:",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
     }
 }
-model = PredatorPreyModel(predatorNum=5, preyNum=5, width=5, height=5)
+
+@solara.component
+def PopulationPlot(model):
+    update_counter.get()
+    fig, ax = plt.subplots()
+    if hasattr(model, "datacollector"):
+        data = model.datacollector.get_model_vars_dataframe()
+        if not data.empty:
+            ax.plot(data["Prey"], label="Prey", color="cyan")
+            ax.plot(data["Predator"], label="Predator", color="red")
+            ax.set_xlabel("Steps")
+            ax.set_ylabel("Model count")
+            ax.set_title("Population plot overt time")
+            ax.legend()
+    else:
+        ax.text(0.5,0.5, "No data yet", ha="center")
+    return solara.FigureMatplotlib(fig)
+
+@solara.component
+def WinCard(model):
+    update_counter.get()
+    if model.predatorCount < 0:
+        return solara.Text("Preys Won!")
+    elif model.preyCount < 0:
+        return solara.Text("Preys Won!")
+    else:
+        return solara.Text("None won yet!")
+
+# @solara.component
+def wonText(model):
+    update_counter.get()
+    with solara.Column() as main:
+        with solara.Sidebar():
+            with solara.Card("Game status: "):
+                WinCard(model)
+    return main
+
+model = PredatorPreyModel(reprodPredator=0.5, reprodPrey=0.5, predatorNum=5, preyNum=5, width=5, height=5, seed=None)
 model.step()
 SpaceGraph = make_space_component(agent_portrayal)
-GiniPlot = make_plot_component("Gini")
 page = SolaraViz(
     model,
-    components=[SpaceGraph],
+    components=[SpaceGraph, PopulationPlot, wonText],
     model_params=model_params,
     name="PredatorPreyModel"
 )
