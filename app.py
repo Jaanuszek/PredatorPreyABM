@@ -89,15 +89,42 @@ def post_process_lines(ax):
 space_component = make_space_component(
     wolf_sheep_portrayal, draw_grid=False, post_process=post_process_space
 )
-lineplot_component = make_plot_component(
+line_plot_component = make_plot_component(
     {"Wolf": "tab:orange", "Sheep": "tab:cyan"},
+    post_process=post_process_lines,
+)
+grass_plot_component = make_plot_component(
+    {"Grass": "tab:green"},
+    post_process=post_process_lines,
+)
+energy_plot_component = make_plot_component(
+    {"AvgWolfEnergy": "tab:red", "AvgSheepEnergy": "tab:blue"},
+    post_process=post_process_lines,
+)
+min_max_energy_plot_component = make_plot_component(
+    {
+        "MaxWolfEnergy": "darkred",
+        "MinWolfEnergy": "lightcoral",
+        "MaxSheepEnergy": "darkblue",
+        "MinSheepEnergy": "lightblue",
+    },
+    post_process=post_process_lines,
+)
+
+ratio_plot_component = make_plot_component(
+    {"WolfToSheepRatio": "tab:purple"},
+    post_process=post_process_lines,
+)
+statistics_plot_component = make_plot_component(
+    {"MedianWolfEnergy": "tab:red", "WolfEnergyStdDev": "tab:orange", "MedianSheepEnergy": "tab:blue", "SheepEnergyStdDev": "tab:purple"},
     post_process=post_process_lines,
 )
 simulator = ABMSimulator()
 model = WolfSheep(simulator=simulator, grass=False)
 page = SolaraViz(
     model,
-    components=[space_component, lineplot_component],
+    components=[space_component, line_plot_component, grass_plot_component, energy_plot_component,
+                min_max_energy_plot_component, ratio_plot_component, statistics_plot_component],
     model_params=model_params,
     name="Wolf Sheep",
     simulator=simulator,

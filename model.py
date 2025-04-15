@@ -1,10 +1,21 @@
 import math
+import statistics
 
 from mesa import Model
 from agents.agents import Wolf, Sheep, GrassPatch, Ground
 from mesa.datacollection import DataCollector
 from mesa.experimental.cell_space import OrthogonalVonNeumannGrid
 from mesa.experimental.devs import ABMSimulator
+
+
+def median(values):
+    if not values:
+        return 0
+
+    values = sorted(values)
+    n = len(values)
+    mid = n // 2
+    return values[mid] if n % 2 != 0 else (values[mid - 1] + values[mid]) / 2
 
 
 class WolfSheep(Model):
@@ -53,12 +64,47 @@ class WolfSheep(Model):
         reporters = {
             "Wolf": lambda m: len(m.agents_by_type[Wolf]),
             "Sheep": lambda m: len(m.agents_by_type[Sheep]),
+            "Grass": (lambda grass_enabled:
+                      (lambda m: len(
+                          m.agents_by_type[GrassPatch].select(lambda gp: gp.is_grown)
+                      ) if grass_enabled else 0)
+                      )(self.grass),
+            "AvgWolfEnergy": lambda m: (
+                sum(w.energy for w in m.agents_by_type[Wolf]) / len(m.agents_by_type[Wolf])
+                if len(m.agents_by_type[Wolf]) > 0 else 0
+            ),
+            "AvgSheepEnergy": lambda m: (
+                sum(s.energy for s in m.agents_by_type[Sheep]) / len(m.agents_by_type[Sheep])
+                if len(m.agents_by_type[Sheep]) > 0 else 0
+            ),
+            "MaxWolfEnergy": lambda m: (
+                max([w.energy for w in m.agents_by_type[Wolf]]) if len(m.agents_by_type[Wolf]) > 0 else 0
+            ),
+            "MinWolfEnergy": lambda m: (
+                min([w.energy for w in m.agents_by_type[Wolf]]) if len(m.agents_by_type[Wolf]) > 0 else 0
+            ),
+            "MaxSheepEnergy": lambda m: (
+                max([s.energy for s in m.agents_by_type[Sheep]]) if len(m.agents_by_type[Sheep]) > 0 else 0
+            ),
+            "MinSheepEnergy": lambda m: (
+                min([s.energy for s in m.agents_by_type[Sheep]]) if len(m.agents_by_type[Sheep]) > 0 else 0
+            ),
+            "WolfToSheepRatio": lambda m: (
+                len(m.agents_by_type[Wolf]) / len(m.agents_by_type[Sheep]) if len(m.agents_by_type[Sheep]) > 0 else 0
+            ),
+            "MedianWolfEnergy": lambda m: (
+                median([w.energy for w in m.agents_by_type[Wolf]])
+            ),
+            "MedianSheepEnergy": lambda m: (
+                median([s.energy for s in m.agents_by_type[Sheep]])
+            ),
+            "SheepEnergyStdDev": lambda m: (
+                statistics.stdev([s.energy for s in m.agents_by_type[Sheep]]) if len(m.agents_by_type[Sheep]) > 1 else 0
+            ),
+            "WolfEnergyStdDev": lambda m: (
+                statistics.stdev([s.energy for s in m.agents_by_type[Wolf]]) if len(m.agents_by_type[Wolf]) > 1 else 0
+            ),
         }
-
-        if self.grass:
-            reporters["Grass"] = lambda m: len(
-                m.agents_by_type[GrassPatch].select(lambda gp: gp.is_grown)
-            )
 
         self.datacollector = DataCollector(model_reporters=reporters)
 
